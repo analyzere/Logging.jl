@@ -1,19 +1,21 @@
 module Logging
 
-using Compat
+using Compat.Libc: strftime
 
 import Base: show
 
 export debug, info, warn, err, critical, log,
        @debug, @info, @warn, @err, @error, @critical, @log,
        Logger,
-       LogLevel, DEBUG, INFO, WARNING, ERROR, CRITICAL, OFF
+       LogLevel, DEBUG, INFO, WARNING, ERROR, CRITICAL, OFF,
+       LogFacility,
+       SysLog
 
 if VERSION < v"0.4.0-dev+3587"
     include("enum.jl")
 end
 
-@enum LogLevel DEBUG INFO WARNING ERROR CRITICAL OFF
+@enum LogLevel OFF=-1 CRITICAL=2 ERROR WARNING INFO=6 DEBUG
 
 try
     DEBUG < CRITICAL
@@ -21,24 +23,76 @@ catch
     Base.isless(x::LogLevel, y::LogLevel) = isless(x.val, y.val)
 end
 
+function Base.convert(::Type{LogLevel}, x::String)
+    for lvl in LogLevel
+        if lvl[1] == symbol(x)
+            return LogLevel(lvl[2])
+        end
+    end
+    error(InexactError())
+end
+
+@enum LogFacility LOG_KERN LOG_USER LOG_MAIL LOG_DAEMON LOG_AUTH LOG_SYSLOG LOG_LPR LOG_NEWS LOG_UUCP LOG_CRON LOG_AUTHPRIV LOG_LOCAL0=16 LOG_LOCAL1 LOG_LOCAL2 LOG_LOCAL3 LOG_LOCAL4 LOG_LOCAL5 LOG_LOCAL6 LOG_LOCAL7
+
+try
+    LOG_KERN < LOG_USER
+catch
+    Base.isless(x::LogFacility, y::LogFacility) = isless(x.val, y.val)
+end
+
+type SysLog
+    socket::UdpSocket
+    ip::IPv4
+    port::Uint16
+    facility::LogFacility
+    machine::String
+    user::String
+
+    SysLog(host::String, port::Int) = new(UdpSocket(), getaddrinfo(host), uint16(port), LOG_USER, gethostname(), Base.source_path()==nothing ? "" : basename(Base.source_path()))
+    SysLog(host::String, port::Int, facility::LogFacility, machine::String, user::String) = new(UdpSocket(), getaddrinfo(host), uint16(port), facility, machine, user)
+
+end
+
+LogOutput = Union(IO,SysLog)
+
 type Logger
     name::String
     level::LogLevel
-    output::IO
+    output::Array{LogOutput,1}
     parent::Logger
 
-    Logger(name::String, level::LogLevel, output::IO, parent::Logger) = new(name, level, output, parent)
-    Logger(name::String, level::LogLevel, output::IO) = (x = new(); x.name = name; x.level=level; x.output=output; x.parent=x)
+    Logger(name::String, level::LogLevel, output::IO, parent::Logger) = new(name, level, [output], parent)
+    Logger(name::String, level::LogLevel, output::IO) = (x = new(); x.name = name; x.level=level; x.output=[output]; x.parent=x)
+    Logger(name::String, level::LogLevel, output::Array{LogOutput,1}, parent::Logger) = new(name, level, output, parent)
+    Logger(name::String, level::LogLevel, output::Array{LogOutput,1}) = (x = new(); x.name = name; x.level=level; x.output=output; x.parent=x)
+
 end
 
-show(io::IO, logger::Logger) = print(io, "Logger(", join([logger.name, 
-                                                          logger.level, 
+show(io::IO, logger::Logger) = print(io, "Logger(", join([logger.name,
+                                                          logger.level,
                                                           logger.output,
                                                           logger.parent.name], ","), ")")
 
 const _root = Logger("root", WARNING, STDERR)
-Logger(name::String;args...) = configure(Logger(name, WARNING, STDERR, _root); args...)
+Logger(name::String;args...) = configure(Logger(name, WARNING, [STDERR], _root); args...)
 Logger() = Logger("logger")
+
+write_log(syslog::SysLog, color::Symbol, msg::String) = send(syslog.socket, syslog.ip, syslog.port, msg)
+write_log{T<:IO}(output::T, color::Symbol, msg::String) = (print(output, msg); flush(output))
+write_log(output::Base.TTY, color::Symbol, msg::String) = Base.print_with_color(color, output, msg)
+
+function log(syslog::SysLog, level::LogLevel, color::Symbol, logger_name::String, msg...)
+    # syslog needs a timestamp in the form: YYYY-MM-DDTHH:MM:SS-TZ:TZ
+    t = time()
+    timestamp = string(strftime("%Y-%m-%dT%H:%M:%S",t), strftime("%z",t)[1:end-2], ":", strftime("%z",t)[end-1:end])
+    logstring = string("<", (uint16(syslog.facility) << 3) + uint16(level), ">1 ", timestamp, " ", syslog.machine, " ", syslog.user, " - - - ", level, ":", logger_name,":", msg...)
+    write_log(syslog, color, logstring)
+end
+
+function log{T<:IO}(output::T, level::LogLevel, color::Symbol, logger_name::String, msg...)
+    logstring = string(strftime("%d-%b %H:%M:%S",time()),":",level, ":",logger_name,":", msg...,"\n")
+    write_log(output, color, logstring)
+end
 
 for (fn,lvl,clr) in ((:debug,    DEBUG,    :cyan),
                      (:info,     INFO,     :blue),
@@ -47,13 +101,9 @@ for (fn,lvl,clr) in ((:debug,    DEBUG,    :cyan),
                      (:critical, CRITICAL, :red))
 
     @eval function $fn(logger::Logger, msg...)
-        if $lvl >= logger.level
-            logstring = string(Libc.strftime("%d-%b %H:%M:%S",time()),":",$lvl, ":",logger.name,":", msg...,"\n")
-            if isa(logger.output, Base.TTY)
-                Base.print_with_color($(Expr(:quote, clr)), logger.output, logstring )
-            else
-                print(logger.output, logstring)
-                flush(logger.output)
+        if $lvl <= logger.level
+            for output in logger.output
+                log(output, $lvl, $(Expr(:quote, clr)), logger.name, msg...)
             end
         end
     end
@@ -70,11 +120,13 @@ function configure(logger=_root; args...)
             logger.output = parent.output
         end
     end
-    
+
     for (tag, val) in args
-        tag == :io            ? (logger.output = val::IO) :
-        tag == :output        ? (logger.output = val::IO) :
-        tag == :filename      ? (logger.output = open(val, "a")) :
+        tag == :io            ? typeof(val) <: AbstractArray ? (logger.output = val) :
+                                                               (logger.output = [val::LogOutput]) :
+        tag == :output        ? typeof(val) <: AbstractArray ? (logger.output = val) :
+                                                               (logger.output = [val::LogOutput]) :
+        tag == :filename      ? (logger.output = [open(val, "a")]) :
         tag == :level         ? (logger.level  = val::LogLevel) :
         tag == :override_info ? nothing :  # handled below
         tag == :parent        ? nothing :  # handled above
@@ -101,4 +153,3 @@ macro configure(args...)
 end
 
 end # module
-

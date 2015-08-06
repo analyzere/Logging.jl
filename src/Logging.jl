@@ -58,7 +58,7 @@ function log(syslog::SysLog, level::LogLevel, logger_name::String, msg...)
     # syslog needs a timestamp in the form: YYYY-MM-DDTHH:MM:SS-TZ:TZ
     timestamp = string(strftime("%Y-%m-%dT%H:%M:%S",t), strftime("%z",t)[1:end-2], ":", strftime("%z",t)[end-1:end])
     log_msg = string("<", (uint16(syslog.facility) << 3) + uint16(level), ">1 ", timestamp, " ", syslog.machine, " ", syslog.user, " - - - ", level, ":", logger_name,":", msg...)
-   send(syslog.socket, syslog.ip, syslog.port, log_msg)
+    send(syslog.socket, syslog.ip, syslog.port, log_msg)
 end
 
 LogOutput = Union(IO,SysLog)

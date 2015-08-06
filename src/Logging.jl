@@ -53,14 +53,6 @@ type SysLog
 
 end
 
-function log(syslog::SysLog, level::LogLevel, logger_name::String, msg...)
-    t = time()
-    # syslog needs a timestamp in the form: YYYY-MM-DDTHH:MM:SS-TZ:TZ
-    timestamp = string(strftime("%Y-%m-%dT%H:%M:%S",t), strftime("%z",t)[1:end-2], ":", strftime("%z",t)[end-1:end])
-    log_msg = string("<", (uint16(syslog.facility) << 3) + uint16(level), ">1 ", timestamp, " ", syslog.machine, " ", syslog.user, " - - - ", level, ":", logger_name,":", msg...)
-    send(syslog.socket, syslog.ip, syslog.port, log_msg)
-end
-
 LogOutput = Union(IO,SysLog)
 
 type Logger
@@ -85,6 +77,23 @@ const _root = Logger("root", WARNING, STDERR)
 Logger(name::String;args...) = configure(Logger(name, WARNING, [STDERR], _root); args...)
 Logger() = Logger("logger")
 
+write_log(syslog::SysLog, color::Symbol, msg::String) = send(syslog.socket, syslog.ip, syslog.port, msg)
+write_log{T<:IO}(output::T, color::Symbol, msg::String) = (print(output, msg); flush(output))
+write_log(output::Base.TTY, color::Symbol, msg::String) = Base.print_with_color(color, output, msg)
+
+function log(syslog::SysLog, level::LogLevel, color::Symbol, logger_name::String, msg...)
+    # syslog needs a timestamp in the form: YYYY-MM-DDTHH:MM:SS-TZ:TZ
+    t = time()
+    timestamp = string(strftime("%Y-%m-%dT%H:%M:%S",t), strftime("%z",t)[1:end-2], ":", strftime("%z",t)[end-1:end])
+    logstring = string("<", (uint16(syslog.facility) << 3) + uint16(level), ">1 ", timestamp, " ", syslog.machine, " ", syslog.user, " - - - ", level, ":", logger_name,":", msg...)
+    write_log(syslog, color, logstring)
+end
+
+function log{T<:IO}(output::T, level::LogLevel, color::Symbol, logger_name::String, msg...)
+    logstring = string(strftime("%d-%b %H:%M:%S",time()),":",level, ":",logger_name,":", msg...,"\n")
+    write_log(output, color, logstring)
+end
+
 for (fn,lvl,clr) in ((:debug,    DEBUG,    :cyan),
                      (:info,     INFO,     :blue),
                      (:warn,     WARNING,  :magenta),
@@ -94,15 +103,7 @@ for (fn,lvl,clr) in ((:debug,    DEBUG,    :cyan),
     @eval function $fn(logger::Logger, msg...)
         if $lvl <= logger.level
             for output in logger.output
-                logstring = string(strftime("%d-%b %H:%M:%S",time()),":",$lvl, ":",logger.name,":", msg...,"\n")
-                if isa(output, Base.TTY)
-                    Base.print_with_color($(Expr(:quote, clr)), output, logstring )
-                elseif typeof(output) <: IO
-                    print(output, logstring)
-                    flush(output)
-                else
-                    log(output, $lvl, logger.name, msg...)
-                end
+                log(output, $lvl, $(Expr(:quote, clr)), logger.name, msg...)
             end
         end
     end

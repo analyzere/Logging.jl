@@ -23,13 +23,13 @@ catch
     Base.isless(x::LogLevel, y::LogLevel) = isless(x.val, y.val)
 end
 
-function Base.convert(::Type{LogLevel}, x::String)
-    for lvl in LogLevel
-        if lvl[1] == symbol(x)
-            return LogLevel(lvl[2])
-        end
-    end
-    error(InexactError())
+function Base.convert(::Type{LogLevel}, x::AbstractString)
+    Dict("OFF"=>OFF,
+         "CRITICAL"=>CRITICAL,
+         "ERROR"=>ERROR,
+         "WARNING"=>WARNING,
+         "INFO"=>INFO,
+         "DEBUG"=>DEBUG)[x]
 end
 
 @enum LogFacility LOG_KERN LOG_USER LOG_MAIL LOG_DAEMON LOG_AUTH LOG_SYSLOG LOG_LPR LOG_NEWS LOG_UUCP LOG_CRON LOG_AUTHPRIV LOG_LOCAL0=16 LOG_LOCAL1 LOG_LOCAL2 LOG_LOCAL3 LOG_LOCAL4 LOG_LOCAL5 LOG_LOCAL6 LOG_LOCAL7
@@ -41,30 +41,30 @@ catch
 end
 
 type SysLog
-    socket::UdpSocket
+    socket::UDPSocket
     ip::IPv4
-    port::Uint16
+    port::UInt16
     facility::LogFacility
-    machine::String
-    user::String
+    machine::AbstractString
+    user::AbstractString
 
-    SysLog(host::String, port::Int) = new(UdpSocket(), getaddrinfo(host), uint16(port), LOG_USER, gethostname(), Base.source_path()==nothing ? "" : basename(Base.source_path()))
-    SysLog(host::String, port::Int, facility::LogFacility, machine::String, user::String) = new(UdpSocket(), getaddrinfo(host), uint16(port), facility, machine, user)
+    SysLog(host::AbstractString, port::Int) = new(UdpSocket(), getaddrinfo(host), uint16(port), LOG_USER, gethostname(), Base.source_path()==nothing ? "" : basename(Base.source_path()))
+    SysLog(host::AbstractString, port::Int, facility::LogFacility, machine::AbstractString, user::AbstractString) = new(UdpSocket(), getaddrinfo(host), uint16(port), facility, machine, user)
 
 end
 
-LogOutput = Union(IO,SysLog)
+LogOutput = Union{IO,SysLog}
 
 type Logger
-    name::String
+    name::AbstractString
     level::LogLevel
     output::Array{LogOutput,1}
     parent::Logger
 
-    Logger(name::String, level::LogLevel, output::IO, parent::Logger) = new(name, level, [output], parent)
-    Logger(name::String, level::LogLevel, output::IO) = (x = new(); x.name = name; x.level=level; x.output=[output]; x.parent=x)
-    Logger(name::String, level::LogLevel, output::Array{LogOutput,1}, parent::Logger) = new(name, level, output, parent)
-    Logger(name::String, level::LogLevel, output::Array{LogOutput,1}) = (x = new(); x.name = name; x.level=level; x.output=output; x.parent=x)
+    Logger(name::AbstractString, level::LogLevel, output::IO, parent::Logger) = new(name, level, [output], parent)
+    Logger(name::AbstractString, level::LogLevel, output::IO) = (x = new(); x.name = name; x.level=level; x.output=[output]; x.parent=x)
+    Logger(name::AbstractString, level::LogLevel, output::Array{LogOutput,1}, parent::Logger) = new(name, level, output, parent)
+    Logger(name::AbstractString, level::LogLevel, output::Array{LogOutput,1}) = (x = new(); x.name = name; x.level=level; x.output=output; x.parent=x)
 
 end
 
@@ -74,14 +74,14 @@ show(io::IO, logger::Logger) = print(io, "Logger(", join([logger.name,
                                                           logger.parent.name], ","), ")")
 
 const _root = Logger("root", WARNING, STDERR)
-Logger(name::String;args...) = configure(Logger(name, WARNING, [STDERR], _root); args...)
+Logger(name::AbstractString;args...) = configure(Logger(name, WARNING, [STDERR], _root); args...)
 Logger() = Logger("logger")
 
-write_log(syslog::SysLog, color::Symbol, msg::String) = send(syslog.socket, syslog.ip, syslog.port, msg)
-write_log{T<:IO}(output::T, color::Symbol, msg::String) = (print(output, msg); flush(output))
-write_log(output::Base.TTY, color::Symbol, msg::String) = Base.print_with_color(color, output, msg)
+write_log(syslog::SysLog, color::Symbol, msg::AbstractString) = send(syslog.socket, syslog.ip, syslog.port, msg)
+write_log{T<:IO}(output::T, color::Symbol, msg::AbstractString) = (print(output, msg); flush(output))
+write_log(output::Base.TTY, color::Symbol, msg::AbstractString) = Base.print_with_color(color, output, msg)
 
-function log(syslog::SysLog, level::LogLevel, color::Symbol, logger_name::String, msg...)
+function log(syslog::SysLog, level::LogLevel, color::Symbol, logger_name::AbstractString, msg...)
     # syslog needs a timestamp in the form: YYYY-MM-DDTHH:MM:SS-TZ:TZ
     t = time()
     timestamp = string(strftime("%Y-%m-%dT%H:%M:%S",t), strftime("%z",t)[1:end-2], ":", strftime("%z",t)[end-1:end])
@@ -89,7 +89,7 @@ function log(syslog::SysLog, level::LogLevel, color::Symbol, logger_name::String
     write_log(syslog, color, logstring)
 end
 
-function log{T<:IO}(output::T, level::LogLevel, color::Symbol, logger_name::String, msg...)
+function log{T<:IO}(output::T, level::LogLevel, color::Symbol, logger_name::AbstractString, msg...)
     logstring = string(strftime("%d-%b %H:%M:%S",time()),":",level, ":",logger_name,":", msg...,"\n")
     write_log(output, color, logstring)
 end
@@ -143,7 +143,7 @@ macro configure(args...)
     quote
         logger = Logging.configure($(args...))
         if Logging.override_info($(args...))
-            function Base.info(msg::String...)
+            function Base.info(msg::AbstractString...)
                 Logging.info(Logging._root, msg...)
             end
         end

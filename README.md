@@ -1,5 +1,4 @@
-[![Build Status](https://travis-ci.org/kmsquire/Logging.jl.svg?branch=master)](https://travis-ci.org/kmsquire/Logging.jl)
-[![PkgEval](http://pkg.julialang.org/badges/Logging_release.svg)](http://pkg.julialang.org/?pkg=Logging&ver=release)
+[![Build Status](https://travis-ci.org/sbchisholm/Logging.jl.svg?branch=master)](https://travis-ci.org/kmsquire/Logging.jl)
 
 Logging.jl: Basic logging for Julia
 ===================================

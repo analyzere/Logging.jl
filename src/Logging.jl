@@ -1,5 +1,6 @@
 module Logging
 
+using Compat
 using Compat.Libc: strftime
 
 import Base: show, info, warn
@@ -48,12 +49,12 @@ type SysLog
     machine::AbstractString
     user::AbstractString
 
-    SysLog(host::AbstractString, port::Int) = new(UdpSocket(), getaddrinfo(host), uint16(port), LOG_USER, gethostname(), Base.source_path()==nothing ? "" : basename(Base.source_path()))
-    SysLog(host::AbstractString, port::Int, facility::LogFacility, machine::AbstractString, user::AbstractString) = new(UdpSocket(), getaddrinfo(host), uint16(port), facility, machine, user)
+    SysLog(host::AbstractString, port::Int) = new(UDPSocket(), getaddrinfo(host), (@compat UInt16(port)), LOG_USER, gethostname(), Base.source_path()==nothing ? "" : basename(Base.source_path()))
+    SysLog(host::AbstractString, port::Int, facility::LogFacility, machine::AbstractString, user::AbstractString) = new(UDPSocket(), getaddrinfo(host), (@compat UInt16(port)), facility, machine, user)
 
 end
 
-LogOutput = Union{IO,SysLog}
+LogOutput = @compat Union{IO,SysLog}
 
 type Logger
     name::AbstractString
@@ -84,7 +85,7 @@ function log(syslog::SysLog, level::LogLevel, color::Symbol, logger_name::Abstra
     # syslog needs a timestamp in the form: YYYY-MM-DDTHH:MM:SS-TZ:TZ
     t = time()
     timestamp = string(strftime("%Y-%m-%dT%H:%M:%S",t), strftime("%z",t)[1:end-2], ":", strftime("%z",t)[end-1:end])
-    logstring = string("<", (uint16(syslog.facility) << 3) + uint16(level), ">1 ", timestamp, " ", syslog.machine, " ", syslog.user, " - - - ", level, ":", logger_name,":", msg...)
+    logstring = string("<", ((@compat UInt16(syslog.facility)) << 3) + (@compat UInt16(level)), ">1 ", timestamp, " ", syslog.machine, " ", syslog.user, " - - - ", level, ":", logger_name,":", msg...)
     write_log(syslog, color, logstring)
 end
 

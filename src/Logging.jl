@@ -48,10 +48,22 @@ type SysLog
     facility::LogFacility
     machine::AbstractString
     user::AbstractString
-    maxsize::UInt16
+    maxlength::UInt16
 
-    SysLog(host::AbstractString, port::Int) = new(UDPSocket(), getaddrinfo(host), (@compat UInt16(port)), LOG_USER, gethostname(), Base.source_path()==nothing ? "" : basename(Base.source_path()), (@compat UInt16(1024)))
-    SysLog(host::AbstractString, port::Int, facility::LogFacility, machine::AbstractString, user::AbstractString, maxsize::Int=1024) = new(UDPSocket(), getaddrinfo(host), (@compat UInt16(port)), facility, machine, user, (@compat UInt16(maxsize)))
+    SysLog(host::AbstractString, 
+           port::Int, 
+           facility::LogFacility=LOG_USER, 
+           machine::AbstractString=gethostname(), 
+           user::AbstractString=Base.source_path()==nothing ? "" : basename(Base.source_path()), 
+           maxlength::Int=1024) = new(
+        UDPSocket(), 
+        getaddrinfo(host), 
+        (@compat UInt16(port)), 
+        facility, 
+        machine, 
+        user, 
+        (@compat UInt16(maxlength))
+    )
 
 end
 
@@ -78,7 +90,7 @@ const _root = Logger("root", WARNING, STDERR)
 Logger(name::AbstractString;args...) = configure(Logger(name, WARNING, [STDERR], _root); args...)
 Logger() = Logger("logger")
 
-write_log(syslog::SysLog, color::Symbol, msg::AbstractString) = send(syslog.socket, syslog.ip, syslog.port, length(msg) > syslog.maxsize ? msg[1:syslog.maxsize] : msg)
+write_log(syslog::SysLog, color::Symbol, msg::AbstractString) = send(syslog.socket, syslog.ip, syslog.port, length(msg) > syslog.maxlength ? msg[1:syslog.maxlength] : msg)
 write_log{T<:IO}(output::T, color::Symbol, msg::AbstractString) = (print(output, msg); flush(output))
 write_log(output::Base.TTY, color::Symbol, msg::AbstractString) = Base.print_with_color(color, output, msg)
 

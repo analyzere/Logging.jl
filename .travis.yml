@@ -3,9 +3,8 @@ os:
   - linux
   - osx
 julia:
-  # NOTE: release is currently using 0.3, not sure why, just 
-  #       use the test against nightly (0.5)
-  #- release
+  - 0.3
+  - 0.4
   - nightly
 notifications:
   email: false

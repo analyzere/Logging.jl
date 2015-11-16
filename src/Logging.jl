@@ -2,7 +2,7 @@ module Logging
 
 using Compat.Libc: strftime
 
-import Base: show
+import Base: show, info, warn
 
 export debug, info, warn, err, critical, log,
        @debug, @info, @warn, @err, @error, @critical, @log,
@@ -65,7 +65,6 @@ type Logger
     Logger(name::AbstractString, level::LogLevel, output::IO) = (x = new(); x.name = name; x.level=level; x.output=[output]; x.parent=x)
     Logger(name::AbstractString, level::LogLevel, output::Array{LogOutput,1}, parent::Logger) = new(name, level, output, parent)
     Logger(name::AbstractString, level::LogLevel, output::Array{LogOutput,1}) = (x = new(); x.name = name; x.level=level; x.output=output; x.parent=x)
-
 end
 
 show(io::IO, logger::Logger) = print(io, "Logger(", join([logger.name,

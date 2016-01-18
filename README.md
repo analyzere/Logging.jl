@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/sbchisholm/Logging.jl.svg?branch=master)](https://travis-ci.org/sbchisholm/Logging.jl)
+[![Build Status](https://travis-ci.org/analyzere/Logging.jl.svg?branch=master)](https://travis-ci.org/analyzere/Logging.jl)
 [![Logging](http://pkg.julialang.org/badges/Logging_0.3.svg)](http://pkg.julialang.org/?pkg=Logging) [![Logging](http://pkg.julialang.org/badges/Logging_0.4.svg)](http://pkg.julialang.org/?pkg=Logging)
 
 

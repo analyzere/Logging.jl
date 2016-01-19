@@ -126,7 +126,7 @@ write_log(output::Base.TTY, color::Symbol, msg::AbstractString) = (Base.println_
 function formatlog(format::AbstractString, logging_fields::Dict)
     function substr(s)
         v = get(logging_fields, s[3:end-1], "<none>")
-        return isa(v, Function) ? string(v()) : string(v)
+        return isa(v, Function) ? string(eval(Main,v())) : string(eval(Main,v))
     end
     return replace(format, r"%\([^)]+\)", substr)
 end

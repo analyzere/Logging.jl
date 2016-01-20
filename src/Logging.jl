@@ -49,7 +49,7 @@ type SysLog <: LogOutput
     format::AbstractString
     timestamp_format::AbstractString
     timezone::TimeZone
-    logging_fields::Dict
+    logging_fields::Dict{AbstractString,Any}
 
     SysLog(host::AbstractString,
            port::Int;
@@ -60,7 +60,7 @@ type SysLog <: LogOutput
            format::AbstractString=default_syslog_format,
            timestamp_format::AbstractString=default_timestamp_format,
            timezone::TimeZone=UTC,
-           logging_fields::Dict=Dict()) = new(
+           logging_fields::Dict{AbstractString,Any}=Dict{AbstractString,Any}()) = new(
         UDPSocket(),
         getaddrinfo(host),
         UInt16(port),
@@ -83,13 +83,13 @@ type LogIO <: LogOutput
     format::AbstractString
     timestamp_format::AbstractString
     timezone::TimeZone
-    logging_fields::Dict
+    logging_fields::Dict{AbstractString,Any}
 
     LogIO(io::IO;
           format::AbstractString=default_log_format,
           timestamp_format::AbstractString=default_timestamp_format,
           timezone::TimeZone=UTC,
-          logging_fields::Dict=Dict()) = new(
+          logging_fields::Dict{AbstractString,Any}=Dict{AbstractString,Any}()) = new(
         io,
         format,
         timestamp_format,
@@ -123,7 +123,7 @@ write_log(syslog::SysLog, color::Symbol, msg::AbstractString) = send(syslog.sock
 write_log{T<:IO}(output::T, color::Symbol, msg::AbstractString) = (println(output, msg); flush(output))
 write_log(output::Base.TTY, color::Symbol, msg::AbstractString) = (Base.println_with_color(color, output, msg); flush(output))
 
-function formatlog(format::AbstractString, logging_fields::Dict)
+function formatlog{T}(format::AbstractString, logging_fields::Dict{AbstractString,T})
     function substr(s)
         v = get(logging_fields, s[3:end-1], "<none>")
         return isa(v, Function) ? string(v()) : string(v)

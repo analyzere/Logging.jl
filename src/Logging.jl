@@ -176,6 +176,11 @@ for (fn,lvl,clr) in ((:debug,    DEBUG,    :cyan),
 
 end
 
+function io_array(val)
+    isa(val, AbstractArray) || (val = [val])
+    map(x->isa(x, IO) ? LogIO(x) : x, val)
+end
+
 function configure(logger=_root; args...)
     for (tag, val) in args
         if tag == :parent

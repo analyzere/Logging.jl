@@ -176,6 +176,11 @@ for (fn,lvl,clr) in ((:debug,    DEBUG,    :cyan),
 
 end
 
+function io_array(val)
+    isa(val, AbstractArray) || (val = [val])
+    map(x->isa(x, IO) ? LogIO(x) : x, val)
+end
+
 function configure(logger=_root; args...)
     for (tag, val) in args
         if tag == :parent
@@ -186,11 +191,9 @@ function configure(logger=_root; args...)
     end
 
     for (tag, val) in args
-        tag == :io            ? typeof(val) <: AbstractArray ? (logger.output = val) :
-                                                               (logger.output = [val::LogOutput]) :
-        tag == :output        ? typeof(val) <: AbstractArray ? (logger.output = val) :
-                                                               (logger.output = [val::LogOutput]) :
-        tag == :filename      ? (logger.output = [open(val, "a")]) :
+        tag == :io            ? (logger.output = io_array(val)) :
+        tag == :output        ? (logger.output = io_array(val)) :
+        tag == :filename      ? (logger.output = io_array(open(val, "a"))) :
         tag == :level         ? (logger.level  = val::LogLevel) :
         tag == :override_info ? nothing :  # handled below
         tag == :parent        ? nothing :  # handled above

@@ -191,10 +191,8 @@ function configure(logger=_root; args...)
     end
 
     for (tag, val) in args
-        tag == :io            ? typeof(val) <: AbstractArray ? (logger.output = val) :
-                                                               (logger.output = [val::LogOutput]) :
-        tag == :output        ? typeof(val) <: AbstractArray ? (logger.output = val) :
-                                                               (logger.output = [val::LogOutput]) :
+        tag == :io            ? (logger.output = io_array(val)) :
+        tag == :output        ? (logger.output = io_array(val)) :
         tag == :filename      ? (logger.output = [open(val, "a")]) :
         tag == :level         ? (logger.level  = val::LogLevel) :
         tag == :override_info ? nothing :  # handled below

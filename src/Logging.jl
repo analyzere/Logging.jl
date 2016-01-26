@@ -193,7 +193,7 @@ function configure(logger=_root; args...)
     for (tag, val) in args
         tag == :io            ? (logger.output = io_array(val)) :
         tag == :output        ? (logger.output = io_array(val)) :
-        tag == :filename      ? (logger.output = [open(val, "a")]) :
+        tag == :filename      ? (logger.output = io_array(open(val, "a"))) :
         tag == :level         ? (logger.level  = val::LogLevel) :
         tag == :override_info ? nothing :  # handled below
         tag == :parent        ? nothing :  # handled above

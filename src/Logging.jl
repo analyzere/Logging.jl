@@ -132,7 +132,7 @@ end
 
 function formatlog(logoutput::LogOutput, level::LogLevel, loggername::AbstractString, timestamp::ZonedDateTime, msg...)
     logoutput.logging_fields["msg"] = string(msg...)
-    logoutput.logging_fields["timestamp"] = Dates.format(ZonedDateTime(timestamp, logoutput.timezone), logoutput.timestamp_format)
+    logoutput.logging_fields["timestamp"] = Dates.format(astimezone(timestamp, logoutput.timezone), logoutput.timestamp_format)
     logoutput.logging_fields["level"] = level
     logoutput.logging_fields["loggername"] = loggername
     return formatlog(logoutput.format, logoutput.logging_fields)
